@@ -29,7 +29,7 @@ def extract_csv_metadata(bucket, key):
 
 def lambda_handler(event, context):
     """Lambda function to process S3 event and store CSV metadata in DynamoDB."""
-    table = dynamodb.Table('metadata')
+    table = dynamodb.Table('ulyft_metadata')
     
     for record in event['Records']:
         bucket = record['s3']['bucket']['name']

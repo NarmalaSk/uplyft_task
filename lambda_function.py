@@ -2,44 +2,20 @@ import json
 import urllib.parse
 import boto3
 import csv
-import chardet  # Auto-detect encoding
 from datetime import datetime
 
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 
-def detect_encoding(content):
-    """Detect file encoding using chardet."""
-    result = chardet.detect(content)
-    return result['encoding']
-
 def extract_csv_metadata(bucket, key):
     """Extract metadata from a CSV file stored in S3."""
     response = s3.get_object(Bucket=bucket, Key=key)
-    file_size = response['ContentLength']
+    content = response['Body'].read().decode('utf-8').splitlines()
     
-    if file_size >= 10 * 1024 * 1024:  # 10 MB limit
-        print(f"Skipping file {key} as it exceeds 10MB.")
-        return None
-    
-    raw_content = response['Body'].read()
-    encoding = detect_encoding(raw_content)
-
-    try:
-        decoded_content = raw_content.decode(encoding).splitlines()
-    except Exception as e:
-        print(f"Error decoding {key} with detected encoding {encoding}: {str(e)}")
-        return None
-    
-    csv_reader = csv.reader(decoded_content)
-    
-    try:
-        column_names = next(csv_reader)  # Extract header
-    except StopIteration:
-        print(f"Skipping file {key} as it is empty or has no valid header.")
-        return None
-    
+    csv_reader = csv.reader(content)
+    column_names = next(csv_reader)  # Extract header
     row_count = sum(1 for _ in csv_reader)  # Count rows excluding header
+    file_size = response['ContentLength']
     upload_timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     
     return {
@@ -65,9 +41,8 @@ def lambda_handler(event, context):
         
         try:
             metadata = extract_csv_metadata(bucket, key)
-            if metadata:
-                table.put_item(Item=metadata)
-                print(f"Metadata inserted for file: {key}")
+            table.put_item(Item=metadata)
+            print(f"Metadata inserted for file: {key}")
         except Exception as e:
             print(f"Error processing file {key}: {str(e)}")
             raise e
